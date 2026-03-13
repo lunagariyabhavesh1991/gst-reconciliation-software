@@ -36,6 +36,8 @@ class ReconciliationRequest(BaseModel):
     portal_sheet: str
     books_file_id: str
     books_sheet: str
+    portal_header_row: int = 1
+    books_header_row: int = 1
     amount_tolerance: float = 1.0
     date_tolerance: int = 3
     ignore_keywords: Optional[List[str]] = None

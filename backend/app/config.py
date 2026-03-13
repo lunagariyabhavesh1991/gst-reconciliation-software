@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     # Processing
     MAX_ROWS_PROCESS: int = 50000
     
+    # Developer details
+    DEVELOPER_NAME: str = ""
+    DEVELOPER_PHONE: str = ""
+
     class Config:
         env_file = ".env"
 
