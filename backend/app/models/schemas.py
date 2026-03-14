@@ -18,6 +18,7 @@ class HeaderDetectionResponse(BaseModel):
     header_row: int
     headers: List[str]
     preview_data: List[Dict[str, Any]]
+    suggested_mappings: Optional[Dict[str, str]] = None
 
 class ColumnMapping(BaseModel):
     column_name: str
@@ -41,6 +42,8 @@ class ReconciliationRequest(BaseModel):
     amount_tolerance: float = 1.0
     date_tolerance: int = 3
     ignore_keywords: Optional[List[str]] = None
+    portal_mappings: Optional[List[ColumnMapping]] = None
+    books_mappings: Optional[List[ColumnMapping]] = None
 
 class ReconciliationMatch(BaseModel):
     match_type: str

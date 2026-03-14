@@ -42,14 +42,21 @@ class ReconciliationService:
             else:
                 record[field] = None
 
-        # Store original data for reference
-        record['original_data'] = row.to_dict()
+        # Store original data for reference, converting NaNs to None for JSON serialization
+        record['original_data'] = row.where(pd.notnull(row), None).to_dict()
         return record
 
     def reconcile(self, portal_df: pd.DataFrame, books_df: pd.DataFrame, request: ReconciliationRequest) -> ReconciliationReport:
         """Main reconciliation logic"""
-        portal_map = self.portal_mappings.get(request.portal_file_id, {})
-        books_map = self.books_mappings.get(request.books_file_id, {})
+        if request.portal_mappings is not None:
+            portal_map = {m.mapped_field: m for m in request.portal_mappings}
+        else:
+            portal_map = self.portal_mappings.get(request.portal_file_id, {})
+
+        if request.books_mappings is not None:
+            books_map = {m.mapped_field: m for m in request.books_mappings}
+        else:
+            books_map = self.books_mappings.get(request.books_file_id, {})
 
         portal_records = [self._extract_standardized_record(row, portal_map) for _, row in portal_df.iterrows()]
         books_records = [self._extract_standardized_record(row, books_map) for _, row in books_df.iterrows()]
@@ -66,8 +73,12 @@ class ReconciliationService:
             matched_b = None
             for b_rec in unmatched_books:
                 # Basic criteria for exact match: GSTIN, Invoice No, and Amount within tiny tolerance
-                if str(p_rec.get('gstin')).strip().upper() == str(b_rec.get('gstin')).strip().upper() and \
-                   str(p_rec.get('invoice_number')).strip().upper() == str(b_rec.get('invoice_number')).strip().upper():
+                p_gstin = str(p_rec.get('gstin')).strip().upper() if p_rec.get('gstin') is not None else None
+                b_gstin = str(b_rec.get('gstin')).strip().upper() if b_rec.get('gstin') is not None else None
+                p_inv = str(p_rec.get('invoice_number')).strip().upper() if p_rec.get('invoice_number') is not None else None
+                b_inv = str(b_rec.get('invoice_number')).strip().upper() if b_rec.get('invoice_number') is not None else None
+
+                if p_gstin and b_gstin and p_inv and b_inv and p_gstin == b_gstin and p_inv == b_inv:
 
                     p_amt = float(p_rec.get('taxable_value') or 0)
                     b_amt = float(b_rec.get('taxable_value') or 0)
@@ -101,21 +112,21 @@ class ReconciliationService:
                 reasons = []
 
                 # Check GSTIN
-                p_gstin = str(p_rec.get('gstin')).strip().upper()
-                b_gstin = str(b_rec.get('gstin')).strip().upper()
-                if p_gstin == b_gstin:
+                p_gstin = str(p_rec.get('gstin')).strip().upper() if p_rec.get('gstin') is not None else ""
+                b_gstin = str(b_rec.get('gstin')).strip().upper() if b_rec.get('gstin') is not None else ""
+                if p_gstin and b_gstin and p_gstin == b_gstin:
                     score += 40
-                elif fuzz.ratio(p_gstin, b_gstin) > 80:
+                elif p_gstin and b_gstin and fuzz.ratio(p_gstin, b_gstin) > 80:
                     score += 20
                     reasons.append("GSTIN typo")
 
                 # Check Invoice Number
-                p_inv = str(p_rec.get('invoice_number')).strip().upper()
-                b_inv = str(b_rec.get('invoice_number')).strip().upper()
-                inv_ratio = fuzz.ratio(p_inv, b_inv)
-                if p_inv == b_inv:
+                p_inv = str(p_rec.get('invoice_number')).strip().upper() if p_rec.get('invoice_number') is not None else ""
+                b_inv = str(b_rec.get('invoice_number')).strip().upper() if b_rec.get('invoice_number') is not None else ""
+                inv_ratio = fuzz.ratio(p_inv, b_inv) if p_inv and b_inv else 0
+                if p_inv and b_inv and p_inv == b_inv:
                     score += 40
-                elif inv_ratio > 80:
+                elif p_inv and b_inv and inv_ratio > 80:
                     score += 20
                     reasons.append(f"Invoice fuzzy match ({inv_ratio}%)")
 
